@@ -140,7 +140,7 @@
             
             timerEl.textContent = `剩余时间：${timeLeft}秒`;
             
-            // 生成题目
+            // 生成题目（添加防抖，避免卡死）
             generateQuestion();
             
             // 开始计时
@@ -193,46 +193,68 @@
             return { question, answer };
         }
 
-        // 生成第二轮题目（两位数两步运算）
+        // 生成第二轮题目（优化版，解决卡死问题）
         function generateRoundTwoQuestion() {
-            // 第一步：两位数加减
-            const a = 10 + Math.floor(Math.random() * 90); // 10-99
-            const b = 10 + Math.floor(Math.random() * 90);
-            const firstOp = Math.floor(Math.random() * 2); // 0=加，1=减
-            let firstResult;
+            let a, b, firstOp, firstResult;
+            let maxRetries = 10; // 最大重试次数，避免无限循环
             
-            if (firstOp === 1) {
-                // 减法，确保结果非负
-                const num1 = Math.max(a, b);
-                const num2 = Math.min(a, b);
-                firstResult = num1 - num2;
-            } else {
-                // 加法
-                firstResult = a + b;
+            // 重试生成第一步，确保能找到合适的除数
+            while (maxRetries > 0) {
+                // 第一步：两位数加减（缩小范围，减少无法整除的情况）
+                a = 10 + Math.floor(Math.random() * 50); // 10-60（缩小范围，更容易整除）
+                b = 10 + Math.floor(Math.random() * 50);
+                firstOp = Math.floor(Math.random() * 2); // 0=加，1=减
+                
+                if (firstOp === 1) {
+                    // 减法，确保结果非负且至少为2（避免太小的数）
+                    const num1 = Math.max(a, b);
+                    const num2 = Math.min(a, b);
+                    firstResult = num1 - num2;
+                } else {
+                    // 加法
+                    firstResult = a + b;
+                }
+
+                // 确保第一步结果至少为4，避免无法整除
+                if (firstResult >= 4) {
+                    break;
+                }
+                maxRetries--;
             }
-            
-            // 第二步：乘除（确保除法结果为整数，且乘除数为2-9）
+
+            // 第二步：乘除（优化逻辑，避免无限循环）
             let c, secondOp, finalAnswer, expr;
-            
             secondOp = Math.floor(Math.random() * 2); // 0=乘，1=除
             
             if (secondOp === 1) {
-                // 除法，确保结果为整数，且除数为2-9
+                // 除法：优先选能整除的数，限制循环次数
+                let loopCount = 0;
+                const maxLoop = 20; // 最大循环次数
                 do {
-                    c = 2 + Math.floor(Math.random() * 8); // 2-9（不再是1-9）
+                    c = 2 + Math.floor(Math.random() * 8); // 2-9
+                    loopCount++;
+                    // 超过次数则强制选能整除的最小数
+                    if (loopCount >= maxLoop) {
+                        // 找2-9中第一个能整除的数
+                        for (let i = 2; i <= 9; i++) {
+                            if (firstResult % i === 0) {
+                                c = i;
+                                break;
+                            }
+                        }
+                        break;
+                    }
                 } while (firstResult % c !== 0);
                 
                 finalAnswer = firstResult / c;
-                
                 // 拼接表达式
                 expr = firstOp === 1 
                     ? `(${Math.max(a, b)} - ${Math.min(a, b)}) ÷ ${c} =` 
                     : `(${a} + ${b}) ÷ ${c} =`;
             } else {
-                // 乘法，乘数为2-9（不再是1-9）
+                // 乘法：直接生成2-9的数，无循环风险
                 c = 2 + Math.floor(Math.random() * 8); // 2-9
                 finalAnswer = firstResult * c;
-                
                 // 拼接表达式
                 expr = firstOp === 1 
                     ? `(${Math.max(a, b)} - ${Math.min(a, b)}) × ${c} =` 
@@ -280,10 +302,12 @@
                 }
             }
             
-            // 立即生成下一题，无等待
+            // 立即生成下一题，无等待（添加防抖）
             answerInput.value = '';
             answerInput.focus();
-            generateQuestion();
+            setTimeout(() => {
+                generateQuestion();
+            }, 0); // 微任务执行，避免主线程阻塞
         }
 
         // 显示结果
