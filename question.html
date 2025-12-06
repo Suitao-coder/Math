@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数学答题程序</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .transition-all-300 {
+                transition: all 300ms ease-in-out;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4 font-sans">
+    <div class="max-w-md w-full bg-white rounded-xl shadow-lg overflow-hidden">
+        <!-- 第一轮开始界面 -->
+        <div id="start-screen" class="p-8 text-center">
+            <h1 class="text-2xl font-bold text-gray-800 mb-8">数学答题挑战</h1>
+            <button id="start-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transform hover:scale-105 transition-all-300">
+                开始第一轮答题
+            </button>
+        </div>
+
+        <!-- 第二轮开始界面 -->
+        <div id="start-round2-screen" class="p-8 text-center hidden">
+            <h1 class="text-2xl font-bold text-gray-800 mb-8">第一轮已完成！</h1>
+            <p class="text-lg text-gray-600 mb-8">准备开始第二轮：两位数两步运算</p>
+            <button id="start-round2-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transform hover:scale-105 transition-all-300">
+                开始第二轮答题
+            </button>
+        </div>
+
+        <!-- 答题界面 -->
+        <div id="quiz-screen" class="p-6 hidden">
+            <div class="flex justify-between items-center mb-6">
+                <div id="round-indicator" class="text-lg font-semibold text-gray-700"></div>
+                <div id="timer" class="text-lg font-mono text-blue-500"></div>
+            </div>
+            
+            <div id="question-container" class="text-center my-8">
+                <div id="question" class="text-2xl font-bold text-gray-800 mb-6 min-h-[80px] flex items-center justify-center"></div>
+                <div class="flex items-center justify-center">
+                    <input type="number" id="answer-input" class="w-32 px-4 py-3 border-2 border-gray-300 rounded-lg text-center text-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all-300" placeholder="答案" autofocus>
+                    <!-- 隐藏提交按钮，仅保留回车提交 -->
+                    <button id="submit-btn" class="hidden">提交</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 结果界面 -->
+        <div id="result-screen" class="p-8 hidden">
+            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">答题结果</h2>
+            <div class="space-y-4 mb-8">
+                <div class="p-4 bg-blue-50 rounded-lg">
+                    <h3 class="font-semibold text-blue-500 mb-2">第一轮：10以内加减法</h3>
+                    <p>总题数: <span id="total1" class="font-bold"></span></p>
+                    <p>正确: <span id="correct1" class="font-bold text-green-500"></span></p>
+                    <p>错误: <span id="wrong1" class="font-bold text-red-500"></span></p>
+                </div>
+                <div class="p-4 bg-green-50 rounded-lg">
+                    <h3 class="font-semibold text-green-500 mb-2">第二轮：两位数两步运算</h3>
+                    <p>总题数: <span id="total2" class="font-bold"></span></p>
+                    <p>正确: <span id="correct2" class="font-bold text-green-500"></span></p>
+                    <p>错误: <span id="wrong2" class="font-bold text-red-500"></span></p>
+                </div>
+            </div>
+            <button id="restart-btn" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-lg shadow transform hover:scale-[1.02] transition-all-300">
+                再玩一次
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentRound = 1;
+        let total1 = 0, correct1 = 0, wrong1 = 0;
+        let total2 = 0, correct2 = 0, wrong2 = 0;
+        let timerInterval;
+        let currentAnswer;
+        let timeLeft = 60;
+
+        // DOM元素
+        const startScreen = document.getElementById('start-screen');
+        const startRound2Screen = document.getElementById('start-round2-screen');
+        const quizScreen = document.getElementById('quiz-screen');
+        const resultScreen = document.getElementById('result-screen');
+        const startBtn = document.getElementById('start-btn');
+        const startRound2Btn = document.getElementById('start-round2-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const questionEl = document.getElementById('question');
+        const answerInput = document.getElementById('answer-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const timerEl = document.getElementById('timer');
+        const roundIndicator = document.getElementById('round-indicator');
+
+        // 初始化
+        startBtn.addEventListener('click', startQuiz);
+        startRound2Btn.addEventListener('click', startRound2);
+        restartBtn.addEventListener('click', restartQuiz);
+        submitBtn.addEventListener('click', checkAnswer);
+        // 仅保留回车提交逻辑
+        answerInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // 阻止默认行为
+                checkAnswer();
+            }
+        });
+
+        // 开始第一轮答题
+        function startQuiz() {
+            startScreen.classList.add('hidden');
+            quizScreen.classList.remove('hidden');
+            currentRound = 1;
+            initRound();
+        }
+
+        // 开始第二轮答题
+        function startRound2() {
+            startRound2Screen.classList.add('hidden');
+            quizScreen.classList.remove('hidden');
+            currentRound = 2;
+            initRound();
+        }
+
+        // 初始化一轮答题
+        function initRound() {
+            // 重置统计和计时器
+            timeLeft = 60;
+            clearInterval(timerInterval);
+            
+            // 设置轮次信息
+            roundIndicator.textContent = currentRound === 1 
+                ? '第一轮：10以内加减法' 
+                : '第二轮：两位数两步运算';
+            
+            timerEl.textContent = `剩余时间：${timeLeft}秒`;
+            
+            // 生成题目
+            generateQuestion();
+            
+            // 开始计时
+            timerInterval = setInterval(updateTimer, 1000);
+            
+            // 聚焦输入框
+            answerInput.value = '';
+            answerInput.focus();
+        }
+
+        // 更新计时器（移除变红提醒）
+        function updateTimer() {
+            timeLeft--;
+            timerEl.textContent = `剩余时间：${timeLeft}秒`;
+            
+            // 时间到
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                if (currentRound === 1) {
+                    // 第一轮结束，显示第二轮开始界面
+                    quizScreen.classList.add('hidden');
+                    startRound2Screen.classList.remove('hidden');
+                } else {
+                    // 第二轮结束，显示结果
+                    showResults();
+                }
+            }
+        }
+
+        // 生成第一轮题目（10以内加减法）
+        function generateRoundOneQuestion() {
+            const a = Math.floor(Math.random() * 11); // 0-10
+            const b = Math.floor(Math.random() * 11);
+            const op = Math.floor(Math.random() * 2); // 0=加，1=减
+            
+            let question, answer;
+            
+            if (op === 1) {
+                // 减法，确保结果非负
+                const num1 = Math.max(a, b);
+                const num2 = Math.min(a, b);
+                question = `${num1} - ${num2} =`;
+                answer = num1 - num2;
+            } else {
+                // 加法
+                question = `${a} + ${b} =`;
+                answer = a + b;
+            }
+            
+            return { question, answer };
+        }
+
+        // 生成第二轮题目（两位数两步运算）
+        function generateRoundTwoQuestion() {
+            // 第一步：两位数加减
+            const a = 10 + Math.floor(Math.random() * 90); // 10-99
+            const b = 10 + Math.floor(Math.random() * 90);
+            const firstOp = Math.floor(Math.random() * 2); // 0=加，1=减
+            let firstResult;
+            
+            if (firstOp === 1) {
+                // 减法，确保结果非负
+                const num1 = Math.max(a, b);
+                const num2 = Math.min(a, b);
+                firstResult = num1 - num2;
+            } else {
+                // 加法
+                firstResult = a + b;
+            }
+            
+            // 第二步：乘除（确保除法结果为整数，且乘除数为2-9）
+            let c, secondOp, finalAnswer, expr;
+            
+            secondOp = Math.floor(Math.random() * 2); // 0=乘，1=除
+            
+            if (secondOp === 1) {
+                // 除法，确保结果为整数，且除数为2-9
+                do {
+                    c = 2 + Math.floor(Math.random() * 8); // 2-9（不再是1-9）
+                } while (firstResult % c !== 0);
+                
+                finalAnswer = firstResult / c;
+                
+                // 拼接表达式
+                expr = firstOp === 1 
+                    ? `(${Math.max(a, b)} - ${Math.min(a, b)}) ÷ ${c} =` 
+                    : `(${a} + ${b}) ÷ ${c} =`;
+            } else {
+                // 乘法，乘数为2-9（不再是1-9）
+                c = 2 + Math.floor(Math.random() * 8); // 2-9
+                finalAnswer = firstResult * c;
+                
+                // 拼接表达式
+                expr = firstOp === 1 
+                    ? `(${Math.max(a, b)} - ${Math.min(a, b)}) × ${c} =` 
+                    : `(${a} + ${b}) × ${c} =`;
+            }
+            
+            return { question: expr, answer: finalAnswer };
+        }
+
+        // 生成题目
+        function generateQuestion() {
+            const questionData = currentRound === 1 
+                ? generateRoundOneQuestion() 
+                : generateRoundTwoQuestion();
+            
+            questionEl.textContent = questionData.question;
+            currentAnswer = questionData.answer;
+        }
+
+        // 检查答案（移除反馈，提交后立即下一题）
+        function checkAnswer() {
+            const userAnswer = parseInt(answerInput.value, 10);
+            
+            // 验证输入
+            if (isNaN(userAnswer)) {
+                answerInput.value = '';
+                answerInput.focus();
+                return;
+            }
+            
+            // 记录结果（仅后台统计，不显示反馈）
+            if (currentRound === 1) {
+                total1++;
+                if (userAnswer === currentAnswer) {
+                    correct1++;
+                } else {
+                    wrong1++;
+                }
+            } else {
+                total2++;
+                if (userAnswer === currentAnswer) {
+                    correct2++;
+                } else {
+                    wrong2++;
+                }
+            }
+            
+            // 立即生成下一题，无等待
+            answerInput.value = '';
+            answerInput.focus();
+            generateQuestion();
+        }
+
+        // 显示结果
+        function showResults() {
+            quizScreen.classList.add('hidden');
+            resultScreen.classList.remove('hidden');
+            
+            // 填充结果数据
+            document.getElementById('total1').textContent = total1;
+            document.getElementById('correct1').textContent = correct1;
+            document.getElementById('wrong1').textContent = wrong1;
+            document.getElementById('total2').textContent = total2;
+            document.getElementById('correct2').textContent = correct2;
+            document.getElementById('wrong2').textContent = wrong2;
+        }
+
+        // 重新开始
+        function restartQuiz() {
+            // 重置所有数据
+            total1 = 0; correct1 = 0; wrong1 = 0;
+            total2 = 0; correct2 = 0; wrong2 = 0;
+            currentRound = 1;
+            
+            // 隐藏其他界面，显示第一轮开始界面
+            resultScreen.classList.add('hidden');
+            startRound2Screen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
